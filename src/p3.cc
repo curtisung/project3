@@ -8,6 +8,15 @@ using namespace std;
 
 bool DEBUG = false;
 
+set<TokenType> FIRST_IDLIST = set<TokenType>{ID};
+set<TokenType> FIRST_NUMLIST = set<TokenType>{NUM};
+set<TokenType> FIRST_INPUT = set<TokenType>{INPUT};
+set<TokenType> FIRST_OUTPUT = set<TokenType>{OUTPUT};
+set<TokenType> FIRST_ASSIGN = set<TokenType>{ID};
+set<TokenType> FIRST_STMTLIST = set<TokenType>{INPUT, OUTPUT, ID};
+set<TokenType> FIRST_PRIMARY = set<TokenType>{ID, NUM};
+set<TokenType> FIRST_OP = set<TokenType>{PLUS, MINUS, MULT, DIV};
+
 void printIntList(vector<int> list) {
     if (DEBUG) {
         for (auto i : list) {
@@ -26,28 +35,8 @@ void printStrList(vector<string> list) {
     }
 }
 
-bool FIRST_IDList(TokenType tt) {
-    set<TokenType> first = {ID};
-    return first.count(tt) == 1;
-}
 
-bool FIRST_numList(TokenType tt) {
-    set<TokenType> first = {NUM};
-    return first.count(tt) == 1;
-}
-
-bool FIRST_inputStmt(TokenType tt){
-    set<TokenType> first = {INPUT};
-    return first.count(tt) == 1;
-}
-
-bool FIRST_outputStmt(TokenType tt){
-    set<TokenType> first = {OUTPUT};
-    return first.count(tt) == 1;
-}
-// TODO: update with each new statement
-bool FIRST_stmtList(TokenType tt) {
-    set<TokenType> first = {INPUT, OUTPUT};
+bool FIRST(TokenType tt, set<TokenType> first){
     return first.count(tt) == 1;
 }
 
@@ -61,6 +50,8 @@ Token P3::expect(TokenType expected_type)
 {
     Token t = lexer.GetToken();
     if (t.token_type != expected_type) {
+        cout << "Unexpected Token: " << t.lexeme << ", " << t.token_type <<endl;
+        cout << "expected: " << expected_type <<endl;
         syntax_error();
     }
     return t;
@@ -131,7 +122,7 @@ InstructionNode* P3::parseBody(){
 
 InstructionNode* P3::parseStmtList(){
     InstructionNode* iNode = parseStmt();
-    if (FIRST_stmtList(ttype())){
+    if (FIRST(ttype(), FIRST_STMTLIST)){
         iNode->next = parseStmtList();
     }
     return iNode;
@@ -139,10 +130,12 @@ InstructionNode* P3::parseStmtList(){
 
 InstructionNode* P3::parseStmt() {
     InstructionNode* iNode;
-    if (FIRST_inputStmt(ttype())){
+    if (FIRST(ttype(), FIRST_INPUT)){
         iNode = parseInputStmt();
-    } else if (FIRST_outputStmt(ttype())){
+    } else if (FIRST(ttype(), FIRST_OUTPUT)){
         iNode = parseOutputStmt();
+    } else if (FIRST(ttype(), FIRST_ASSIGN)) {
+        iNode = parseAssignStmt();
     }
     return iNode;
 }
@@ -175,6 +168,62 @@ InstructionNode* P3::parseOutputStmt(){
     return node;
 }
 
+InstructionNode* P3::parseAssignStmt(){
+    /*
+    assign stmt → ID EQUAL primary SEMICOLON |
+                  ID EQUAL expr SEMICOLON
+    */
+    string id = expect(ID).lexeme;
+    expect(EQUAL);
+
+    int op1Loc = parsePrimary();
+    int op2Loc;
+    ArithmeticOperatorType op = OPERATOR_NONE;
+    
+    if (FIRST(ttype(), FIRST_OP)) {
+        op = parseOperator();
+        op2Loc = parsePrimary();
+    }
+
+    expect(SEMICOLON);
+
+    InstructionNode* iNode = new InstructionNode;
+    iNode->type = ASSIGN;
+    iNode->assign_inst.lhs_loc = this->varLocs.at(id);
+    iNode->assign_inst.op1_loc = op1Loc;
+    iNode->assign_inst.op = op;
+    iNode->assign_inst.op2_loc = op2Loc;
+    iNode->next = nullptr;
+    return iNode;
+}
+
+int P3::parsePrimary() {
+    Token t = lexer.GetToken();
+
+    if (t.token_type == ID) {
+        return this->varLocs.at(t.lexeme);
+    } else if (t.token_type == NUM) {
+        int constLoc = storeValue(stoi(t.lexeme));
+        this->varLocs.insert({t.lexeme, constLoc});
+        return constLoc;
+    } else {
+        syntax_error();
+    }
+
+    return -1;
+}
+
+ArithmeticOperatorType P3::parseOperator() {
+    Token t = lexer.GetToken();
+    map<TokenType, ArithmeticOperatorType> opMap = map<TokenType, ArithmeticOperatorType>{
+        {PLUS, OPERATOR_PLUS},
+        {MINUS, OPERATOR_MINUS},
+        {MULT, OPERATOR_MULT},
+        {DIV, OPERATOR_DIV},
+    };
+    return opMap.at(t.token_type);
+}
+
 NumList P3::parseInputs() {
     return parseNumList();
 }
@@ -185,7 +234,7 @@ NumList P3::parseNumList(){
     vector<int> nums = vector<int>{stoi(t.lexeme)};
     NumList numL = NumList{nums};
 
-    if (FIRST_numList(ttype())) {
+    if (FIRST(ttype(), FIRST_NUMLIST)) {
         vector<int> moreNums = parseNumList().nums;
         numL.nums.insert(numL.nums.end(), 
                     moreNums.begin(), moreNums.end());

@@ -20,10 +20,6 @@ struct NumList {
     NumList() : nums(vector<int>{}) {};
 };
 
-struct Body {
-
-};
-
 class P3 {
     public:
         LexicalAnalyzer lexer;
@@ -49,6 +45,11 @@ class P3 {
 
         InstructionNode* parseInputStmt();
         InstructionNode* parseOutputStmt();
+        InstructionNode* parseAssignStmt();
+        int parsePrimary();
+        ArithmeticOperatorType parseOperator();
+
+
 
         NumList parseInputs();
         NumList parseNumList();
