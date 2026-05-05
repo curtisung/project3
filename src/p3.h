@@ -4,6 +4,7 @@
 #include "execute.h"
 #include "lexer.h"
 #include <string>
+#include <map>
 
 using namespace std;
 
@@ -26,22 +27,28 @@ struct Body {
 class P3 {
     public:
         LexicalAnalyzer lexer;
+        map<string, int> varLocs;
+
         Token expect(TokenType expected_type);
         void syntax_error();
         TokenType ttype();
         int storeValue(int val);
+        int location(string varName);
+
 
         InstructionNode* parseProgram();
         
         IDList parseVarSection();
         IDList parseIDList();
 
-        void parseBody();
-        void parseStmtList();
-        void parseStmt();
+        InstructionNode* parseBody();
+        
+        InstructionNode* parseStmtList();
+        InstructionNode* parseStmt();
 
 
-        void parseInputStmt();
+        InstructionNode* parseInputStmt();
+        InstructionNode* parseOutputStmt();
 
         NumList parseInputs();
         NumList parseNumList();

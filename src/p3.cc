@@ -6,7 +6,7 @@
 
 using namespace std;
 
-bool DEBUG = true;
+bool DEBUG = false;
 
 void printIntList(vector<int> list) {
     if (DEBUG) {
@@ -36,9 +36,18 @@ bool FIRST_numList(TokenType tt) {
     return first.count(tt) == 1;
 }
 
+bool FIRST_inputStmt(TokenType tt){
+    set<TokenType> first = {INPUT};
+    return first.count(tt) == 1;
+}
+
+bool FIRST_outputStmt(TokenType tt){
+    set<TokenType> first = {OUTPUT};
+    return first.count(tt) == 1;
+}
 // TODO: update with each new statement
 bool FIRST_stmtList(TokenType tt) {
-    set<TokenType> first = {INPUT};
+    set<TokenType> first = {INPUT, OUTPUT};
     return first.count(tt) == 1;
 }
 
@@ -67,6 +76,10 @@ int P3::storeValue(int val){
     return next_available++;
 }
 
+int P3::location(string varName){
+    return this->varLocs.at(varName);
+}
+
 /* end Parser Helpers */
 
 
@@ -74,11 +87,21 @@ InstructionNode* P3::parseProgram(){
     IDList idL = parseVarSection();
     printStrList(idL.ids);
 
-    parseBody();
+    for (string var : idL.ids){
+        int location = storeValue(0);
+        this->varLocs.insert({var,location});
+    }
+    
+    InstructionNode* iNode = parseBody();
+    
     NumList nL = parseInputs();
+    for (int inp : nL.nums) {
+        inputs.push_back(inp);
+    }
+    
     printIntList(nL.nums);
 
-    return new InstructionNode;
+    return iNode;
 }
 
 IDList P3::parseVarSection(){
@@ -99,29 +122,57 @@ IDList P3::parseIDList() {
     return idL;
 }
 
-void P3::parseBody(){
+InstructionNode* P3::parseBody(){
     expect(LBRACE);
-    parseStmtList();
+    InstructionNode* iNode = parseStmtList();
     expect(RBRACE);
+    return iNode;
 }
 
-void P3::parseStmtList(){
-    parseStmt();
+InstructionNode* P3::parseStmtList(){
+    InstructionNode* iNode = parseStmt();
     if (FIRST_stmtList(ttype())){
-        parseStmtList();
+        iNode->next = parseStmtList();
     }
+    return iNode;
 }
 
-void P3::parseStmt() {
-    parseInputStmt();
+InstructionNode* P3::parseStmt() {
+    InstructionNode* iNode;
+    if (FIRST_inputStmt(ttype())){
+        iNode = parseInputStmt();
+    } else if (FIRST_outputStmt(ttype())){
+        iNode = parseOutputStmt();
+    }
+    return iNode;
 }
 
-void P3::parseInputStmt(){
+InstructionNode* P3::parseInputStmt(){
     expect(INPUT);
+
     Token t = expect(ID);
-    int loc = storeValue(0);
-    cout << loc << endl;
+    InstructionNode* node = new InstructionNode;
+    node->type = IN;
+    node->input_inst.var_loc = this->varLocs.at(t.lexeme);
+    node->next = nullptr;
+    // cout << node->input_inst.var_loc << endl;
+    
     expect(SEMICOLON);
+    return node;
+}
+
+InstructionNode* P3::parseOutputStmt(){
+    expect(OUTPUT);
+
+    Token t = expect(ID);
+    InstructionNode* node = new InstructionNode;
+    node->type = OUT;
+    node->output_inst.var_loc = this->varLocs.at(t.lexeme);
+    node->next = nullptr;
+    // cout << node->input_inst.var_loc << endl;
+    
+    expect(SEMICOLON);
+    return node;
 }
 
 NumList P3::parseInputs() {
